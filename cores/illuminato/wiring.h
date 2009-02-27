@@ -43,18 +43,6 @@ extern "C"{
 #define HIGH    1
 #define LOW     0
 
-/* A structure to describe the pins */
-typedef struct {
-    uint8_t  *PortReg;      //The port of the pin ex. PORTA, PORTB,...
-    uint8_t   PinNum;       //The pin number in the port, usually PA1, PA2,...
-    uint8_t  *PinReg;       //The pin input register
-    uint8_t  *DirReg;       //The data direction register
-    uint8_t  *PCMSK;        //The PCMSK register number
-    uint8_t   PCINT;        //The PCINT bit number
-} PIN_DESC_T;
-
-
-
 void init(void);
 void setup(void);
 void loop(void);
@@ -63,9 +51,12 @@ void pinMode(uint8_t pin, uint8_t mode);
 void digitalWrite(uint8_t pin, uint8_t val);
 uint8_t digitalRead(uint8_t pin);
 int analogRead(uint8_t pin);
+void analogWrite(uint8_t pin, int val);
 unsigned long millis();
 void delay(unsigned long ms);
 void bling(uint8_t percent);
+void blinga(uint8_t percent);
+
 
 #ifdef __cplusplus
 } // extern "C"

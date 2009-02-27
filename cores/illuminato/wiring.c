@@ -14,70 +14,113 @@
  *============================================================================*/
 #include "wiring.h"
 
-/* Maximum number of pins, for error checking */
-#define NUM_PINS sizeof(pinTable)/sizeof(PIN_DESC_T) 
 #define MILLISECOND_CNT_MAX	7 	//8*128uS = 1.024 mS
 
 /*==============================================================================
  * CONSTANTS
  *============================================================================*/
 
-/* The user pin lookup table.
-   This table provides a mapping to the hardware pins. */
-PIN_DESC_T const pinTable[] = {
+/*
+ * These following macros and arrays map the physical header pins to their
+ * respective chip pins.
+ */
+#define portOffsetToField(off,what) ((volatile uint8_t *)(pgm_read_word(&(_port[off].what))))
+#define PinToPORT(x) portOffsetToField(pgm_read_byte(&(_pin[x].port)),portx)
+#define PinToPIN(x) portOffsetToField(pgm_read_byte(&(_pin[x].port)),pinx)
+#define PinToDDR(x) portOffsetToField(pgm_read_byte(&(_pin[x].port)),ddrx)
+#define PinToTimer(x) (volatile uint8_t *)(pgm_read_word(&(_pin[x].timer)))
+#define PinToPinBit(x) pgm_read_word(&(_pin[x].pinbit))
 
-    /* 0 */  { &PORTE, 0, &PINE, &DDRE }, //PCINT0
-    /* 1 */  { &PORTE, 1, &PINE, &DDRE },
-    /* 2 */  { &PORTE, 2, &PINE, &DDRE },
-    /* 3 */  { &PORTE, 3, &PINE, &DDRE },
-    /* 4 */  { &PORTE, 4, &PINE, &DDRE },
-    /* 5 */  { &PORTE, 5, &PINE, &DDRE },
-    /* 6 */  { &PORTE, 6, &PINE, &DDRE },
-    /* 7 */  { &PORTE, 7, &PINE, &DDRE },
+/* tuples of port registers */
+static
+const
+struct _port_lookup
+{
+	volatile uint8_t *portx;
+	volatile uint8_t *pinx;
+	volatile uint8_t *ddrx;
+} PROGMEM _port[] =
+{
+	{ &PORTA, &PINA, &DDRA },
+	{ &PORTB, &PINB, &DDRB },
+	{ &PORTC, &PINC, &DDRC },
+	{ &PORTD, &PIND, &DDRD },
+	{ &PORTE, &PINE, &DDRE },
+	{ &PORTF, &PINF, &DDRF },
+	{ &PORTG, &PING, &DDRG },
+};
+enum _port_offsets
+{
+	PORT_A,
+	PORT_B,
+	PORT_C,
+	PORT_D,
+	PORT_E,
+	PORT_F,
+	PORT_G,
+} __attribute__((__packed__)); /* fit it into a byte */
 
-    /* 8 */  { &PORTD, 2, &PIND, &DDRD },
-    /* 9 */  { &PORTD, 3, &PIND, &DDRD },
-    /* 10 */ { &PORTD, 4, &PIND, &DDRD },
-    /* 11 */ { &PORTD, 6, &PIND, &DDRD },
-    /* 12 */ { &PORTD, 7, &PIND, &DDRD },
+static
+const
+struct _pin_lookup
+{
+	enum _port_offsets port;
+	uint8_t pinbit;
+	volatile uint8_t *timer;
+} PROGMEM _pin[] =
+{
+	{ PORT_E, PE0, NULL    }, /*  0 */
+	{ PORT_E, PE1, NULL    }, /*  1 */
+	{ PORT_E, PE2, NULL    }, /*  2 */
+	{ PORT_E, PE3, NULL    }, /*  3 */
+	{ PORT_E, PE4, NULL    }, /*  4 */
+	{ PORT_E, PE5, NULL    }, /*  5 */
+	{ PORT_E, PE6, NULL    }, /*  6 */
+	{ PORT_E, PE7, NULL    }, /*  7 */
 
-    /* 13 */ { &PORTG, 0, &PING, &DDRG },
+	{ PORT_D, PD2, NULL    }, /*  8 */
+	{ PORT_D, PD3, NULL    }, /*  9 */
+	{ PORT_D, PD4, NULL    }, /* 10 */
+	{ PORT_D, PD6, NULL    }, /* 11 */
+	{ PORT_D, PD7, NULL    }, /* 12 */
 
-    /* 14 */ { &PORTB, 0, &PINB, &DDRB },
-    /* 15 */ { &PORTB, 4, &PINB, &DDRB },
-    /* 16 */ { &PORTB, 5, &PINB, &DDRB },
-    /* 17 */ { &PORTB, 6, &PINB, &DDRB },
+	{ PORT_G, PG0, NULL    }, /* 13 */
 
-    /* 18 */ { &PORTG, 3, &PING, &DDRG },
-    /* 19 */ { &PORTG, 4, &PING, &DDRG },
+	{ PORT_B, PB0, NULL    }, /* 14 */
+	{ PORT_B, PB4, &OCR0A  }, /* 15 */
+	{ PORT_B, PB5, &OCR1AL }, /* 16 */
+	{ PORT_B, PB6, &OCR1BL }, /* 17 */
 
-    /* 20 */ { &PORTD, 0, &PIND, &DDRD },
-    /* 21 */ { &PORTD, 1, &PIND, &DDRD },
+	{ PORT_G, PG3, NULL    }, /* 18 */
+	{ PORT_G, PG4, NULL    }, /* 19 */
 
-    /* 22 */ { &PORTG, 1, &PING, &DDRG },
+	{ PORT_D, PD0, NULL    }, /* 20 */
+	{ PORT_D, PD1, NULL    }, /* 21 */
 
-    /* 23 */ { &PORTC, 0, &PINC, &DDRC },
-    /* 24 */ { &PORTC, 1, &PINC, &DDRC },
-    /* 25 */ { &PORTC, 2, &PINC, &DDRC },
-    /* 26 */ { &PORTC, 3, &PINC, &DDRC },
-    /* 27 */ { &PORTC, 4, &PINC, &DDRC },
-    /* 28 */ { &PORTC, 5, &PINC, &DDRC },
-    /* 29 */ { &PORTC, 6, &PINC, &DDRC },
-    /* 30 */ { &PORTC, 7, &PINC, &DDRC },
-    /* 31 */ { &PORTG, 2, &PING, &DDRG },
-    /* 32 */ { &PORTA, 7, &PINA, &DDRA },
-    /* 33 */ { &PORTA, 6, &PINA, &DDRA },
-    /* 34 */ { &PORTA, 5, &PINA, &DDRA },
-    /* 35 */ { &PORTA, 4, &PINA, &DDRA },
+	{ PORT_G, PG1, NULL    }, /* 22 */
 
-    /* 36 */ { &PORTF, 5, &PINF, &DDRF },
-    /* 37 */ { &PORTF, 4, &PINF, &DDRF },
-    /* 38 */ { &PORTF, 3, &PINF, &DDRF },
-    /* 39 */ { &PORTF, 2, &PINF, &DDRF },
-    /* 40 */ { &PORTF, 1, &PINF, &DDRF },
-    /* 41 */ { &PORTF, 0, &PINF, &DDRF },
+	{ PORT_C, PC0, NULL    }, /* 23 */
+	{ PORT_C, PC1, NULL    }, /* 24 */
+	{ PORT_C, PC2, NULL    }, /* 25 */
+	{ PORT_C, PC3, NULL    }, /* 26 */
+	{ PORT_C, PC4, NULL    }, /* 27 */
+	{ PORT_C, PC5, NULL    }, /* 28 */
+	{ PORT_C, PC6, NULL    }, /* 29 */
+	{ PORT_C, PC7, NULL    }, /* 30 */
+	{ PORT_G, PG2, NULL    }, /* 31 */
+	{ PORT_A, PA7, NULL    }, /* 32 */
+	{ PORT_A, PA6, NULL    }, /* 33 */
+	{ PORT_A, PA5, NULL    }, /* 34 */
+	{ PORT_A, PA4, NULL    }, /* 35 */
 
-    /* 42 */ { &PORTB, 7, &PINB, &DDRB },
+	{ PORT_F, PF5, NULL    }, /* 36 */
+	{ PORT_F, PF4, NULL    }, /* 37 */
+	{ PORT_F, PF3, NULL    }, /* 38 */
+	{ PORT_F, PF2, NULL    }, /* 39 */
+	{ PORT_F, PF1, NULL    }, /* 40 */
+	{ PORT_F, PF0, NULL    }, /* 41 */
+
+	{ PORT_B, PB7, &OCR2A  }, /* 42 - 'bling' */
 };
 
 /*==============================================================================
@@ -110,21 +153,35 @@ volatile unsigned char millis_var_counter=0;
 *===========================================================================*/
 void pinMode(uint8_t pin, uint8_t mode)
 {
-    PIN_DESC_T *p = &pinTable[pin];
+	volatile uint8_t *timer_port = PinToTimer(pin);
 
-    /* Check desired mode */
     if (mode == INPUT)
     {
-        /* Look up the DDR reg and set the bit */ 
-        CLRBIT(*p->DirReg, 
-               p->PinNum);
+        CLRBIT(*PinToDDR(pin), PinToPinBit(pin));
     }
     else
     {
-        /* Look up the DDR reg and set the bit */
-        SETBIT(*p->DirReg, 
-                p->PinNum);         
+        SETBIT(*PinToDDR(pin), PinToPinBit(pin));
     }
+
+	/* default to digital */	
+	if (timer_port == &OCR0A)
+	{
+		CLRBIT(TCCR0A, COM0A1);
+	}
+	else if (timer_port == &OCR1AL)
+	{
+		CLRBIT(TCCR1A, COM1A1);
+	}
+	else if (timer_port == &OCR1BL)
+	{
+		CLRBIT(TCCR1A, COM1B1);
+	}
+	else if (timer_port == &OCR2A)
+	{
+		CLRBIT(TCCR2A, COM2A1);
+		CLRBIT(TCCR2A, COM2A0);
+	}
 }
 
 /* ===========================================================================
@@ -146,20 +203,13 @@ void pinMode(uint8_t pin, uint8_t mode)
 *===========================================================================*/
 void digitalWrite(uint8_t pin, uint8_t val)
 {
-    PIN_DESC_T *p = &pinTable[pin];
-
-    /* Check desired state */
     if (val == HIGH)
     {
-        /* Look up the port reg and set the bit */
-        SETBIT(*p->PortReg, 
-                p->PinNum); 
+        SETBIT(*PinToPORT(pin), PinToPinBit(pin)); 
     }
     else
     {
-        /* Look up the port reg and set the bit */ 
-        CLRBIT(*p->PortReg, 
-                p->PinNum);        
+        CLRBIT(*PinToPORT(pin), PinToPinBit(pin));
     }
 }
 
@@ -181,11 +231,7 @@ void digitalWrite(uint8_t pin, uint8_t val)
 *===========================================================================*/
 uint8_t digitalRead(uint8_t pin)
 {
-    PIN_DESC_T *p = &pinTable[pin];
-    
-    /* Return the pin register value at the bit location */
-    return CHECKBIT(*p->PinReg,
-                     p->PinNum);
+    return CHECKBIT(*PinToPORT(pin), PinToPinBit(pin));
 }
 
 /* ===========================================================================
@@ -230,6 +276,45 @@ int analogRead(uint8_t pin)
 }
 
 /* ===========================================================================
+ * analogRead
+ * sets the PWM value for the given pin if supported, otherwise sets
+ * closest digital value
+ * =========================================================================*/
+void analogWrite(uint8_t pin, int val)
+{
+	volatile uint8_t *timer_port = PinToTimer(pin);
+
+	/* set pin to output mode */
+	SETBIT(*PinToDDR(pin), PinToPinBit(pin));
+
+	if (timer_port == NULL)
+	{
+		/* defalt to digital if pin is not PWM capable */
+		digitalWrite(pin, (val < 128) ? LOW : HIGH);
+		return;
+	}
+	
+	if (timer_port == &OCR0A)
+	{
+		SETBIT(TCCR0A, COM0A1);
+	}
+	else if (timer_port == &OCR1AL)
+	{
+		SETBIT(TCCR1A, COM1A1);
+	}
+	else if (timer_port == &OCR1BL)
+	{
+		SETBIT(TCCR1A, COM1B1);
+	}
+	else if (timer_port == &OCR2A)
+	{
+		SETBIT(TCCR2A, COM2A1);
+		SETBIT(TCCR2A, COM2A0); /* bling needs to be inverted */
+	}
+	*timer_port = val;
+}
+
+/* ===========================================================================
 *  FUNCTION: SIG_OVERFLOW0
 *
 *  DESIGN DESCRIPTION:
@@ -252,7 +337,8 @@ SIGNAL(SIG_OVERFLOW0)
     {
         millis_var++;           // incremement the free running counter 
         millis_var_counter=0;   // reset the 128usec counter
-    } else
+    }
+    else
     {
         millis_var_counter++;   // incremement the 128usec counter
     }
@@ -277,7 +363,12 @@ SIGNAL(SIG_OVERFLOW0)
 *===========================================================================*/
 unsigned long millis()
 {
-	return millis_var;
+	unsigned long m;
+
+	cli();
+	m = millis_var;
+	sei();
+	return m;
 }
 
 /* ===========================================================================
@@ -312,12 +403,24 @@ void init()
 	TCCR0A = (0<<CS02) | (1<<CS01) | (0<<CS00); //timer 0 setup to overflow every 128us
 	TIMSK0 = (1<<TOIE0); //enable timer 0 overflow interrupts
 
+	//Init TIMER 1
+	TCCR1A = (1<<WGM10); /* PWM, Phase Correct */
+	TCCR1B = (1<<CS10); /* CLK/1 */
+
+	//Init TIMER 2
+	TCCR2A = (1<<WGM20) | (1<<CS20); /* PWM, Phase Correct, CLK/1 */
+
     //Init ADC      
     ADCSRA = (1 << ADEN) |                                 // Turn on the ADC converter
              (1 << ADPS2) | (1 << ADPS1) | (1 << ADPS0);   // Clock = F_CPU / 128
 
     sei();          //enable global interupts
     //delay(2500);    //wait for the DTR to stop messing with us
+}
+
+void blinga(uint8_t val)
+{
+	analogWrite(42, val);
 }
 
 void bling(uint8_t percent)
