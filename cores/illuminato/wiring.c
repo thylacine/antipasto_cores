@@ -122,7 +122,7 @@ struct _pin_lookup
 
 	{ PORT_B, PB7, &OCR2A  }, /* 42 - 'bling' */
 };
-#define MAX_PINS (sizeof(_pin)/sizeof(struct _pin_lookup))
+#define MAX_PINS ((sizeof(_pin) / sizeof(struct _pin_lookup)) - 1)
 
 /*==============================================================================
  * GLOBAL VARIABLES
@@ -154,7 +154,7 @@ volatile unsigned char millis_var_counter=0;
 *===========================================================================*/
 void pinMode(uint8_t pin, uint8_t mode)
 {
-	volatile uint8_t *timer_port = PinToTimer(pin);
+	volatile uint8_t *timer_port;
 
     if (pin > MAX_PINS)
         return;
@@ -168,7 +168,8 @@ void pinMode(uint8_t pin, uint8_t mode)
         SETBIT(*PinToDDR(pin), PinToPinBit(pin));
     }
 
-	/* default to digital */	
+	/* default to digital */
+	timer_port = PinToTimer(pin);
 	if (timer_port == &OCR0A)
 	{
 		CLRBIT(TCCR0A, COM0A1);
